@@ -263,16 +263,21 @@
     },
 
     /**
-     * 直接 PUT 文件到预签名 URL（不携带 Authorization，跨域上传到 R2）
-     * @param {string} presignedUrl - 预签名 URL
+     * 直接 PUT 文件到上传接口（携带 Authorization）
+     * @param {string} uploadUrl - 上传 URL（含 key 参数）
      * @param {Blob} blob - 文件内容
      * @param {string} contentType - 文件 MIME 类型
      * @returns {Promise<Response>}
      */
-    putToPresigned: function (presignedUrl, blob, contentType) {
-      return fetch(presignedUrl, {
+    putToPresigned: function (uploadUrl, blob, contentType) {
+      var headers = { 'Content-Type': contentType || 'application/octet-stream' };
+      var token = getToken();
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+      }
+      return fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': contentType || 'application/octet-stream' },
+        headers: headers,
         body: blob
       });
     },
