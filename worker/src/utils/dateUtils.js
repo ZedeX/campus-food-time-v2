@@ -38,16 +38,26 @@ export function formatDateWithWeekday(dateStr) {
 // ISO 8601 week calculation
 // Returns { year, weekNumber, yearWeek: "YYYY-WNN" }
 export function getISOWeek(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00+08:00');
+  // Parse date string as UTC midnight (treat input as Beijing date)
+  // Beijing date 2025-12-29 means UTC 2025-12-28 16:00 to 2025-12-29 16:00
+  // For ISO week calculation, we need the date in UTC terms
+  const [year, month, day] = dateStr.split('-').map(Number);
+  
+  // Create a date object representing the Beijing date at noon UTC
+  // This avoids timezone issues across different environments
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  
   // Set to nearest Thursday: current date + 4 - current day number
   // Make Sunday's day number 7
-  const dayNum = date.getDay() || 7;
-  date.setDate(date.getDate() + 4 - dayNum);
-  const yearStart = new Date(date.getFullYear(), 0, 1);
-  const weekNumber = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-  const year = date.getFullYear();
-  const yearWeek = `${year}-W${String(weekNumber).padStart(2, '0')}`;
-  return { year, weekNumber, yearWeek };
+  const dayNum = date.getUTCDay() || 7;
+  const thursday = new Date(date.getTime());
+  thursday.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  const isoYear = thursday.getUTCFullYear();
+  const yearWeek = `${isoYear}-W${String(weekNumber).padStart(2, '0')}`;
+  return { year: isoYear, weekNumber, yearWeek };
 }
 
 // Get the Monday of the week containing the given date
