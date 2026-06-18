@@ -1,150 +1,152 @@
-# 校园食光 (Campus Food Time)
+# 🍽️ 校园食光 (Campus Food Time)
 
-> 让每一餐都透明，让家长更放心
+> **让每一餐都透明，让家长更安心**
 
-## 简介
+一款专为学校食堂打造的食谱发布平台，帮助教师轻松发布每日/每周食谱，让家长随时了解孩子的饮食安排。
 
-**校园食光** 是一个专为学校食堂打造的食谱发布平台，帮助学校轻松发布每日/每周食谱，让家长实时了解孩子的用餐情况。
+---
 
-基于 Cloudflare Workers 构建，采用全球边缘计算架构，确保访问快速稳定。
+## ✨ 产品亮点
 
-## 核心功能
+### 🎯 解决痛点
+- **信息不对称**：家长无法及时了解学校食堂的食谱安排
+- **发布繁琐**：教师需要通过微信群反复发送食谱图片，效率低下
+- **历史难查**：过往食谱难以追溯，无法统计分析
 
-- **食谱发布**：教师一键发布每日/每周食谱，支持图片和视频展示
-- **家长查看**：家长登录即可查看孩子学校的食谱详情
-- **历史回溯**：完整保留食谱历史版本，支持管理员回滚
-- **统计分析**：自动统计菜品出现频率，优化膳食搭配
-- **数据归档**：支持按学期归档食谱数据，便于长期保存
+### 💡 核心价值
+- **一键发布**：教师通过网页端快速上传食谱图片/视频
+- **随时查看**：家长通过手机端实时查看当日/本周食谱
+- **智能压缩**：前端自动压缩图片视频，节省上传时间
+- **历史追溯**：完整保留食谱历史，支持按日期/学期查询
 
-## 技术亮点
+---
 
-| 特性 | 说明 |
+## 🚀 技术特色
+
+### 架构设计
+- **Cloudflare Workers**：边缘计算，全球加速访问
+- **D1 数据库**：SQLite 云端版，SQL 查询灵活高效
+- **R2 存储**：私有桶 + Worker 代理，安全可控
+- **KV 缓存**：60 分钟食谱缓存，极致响应速度
+
+### 开发实践
+- **TDD 开发**：单元测试先行，代码质量保障
+- **ISO 8601 标准**：严格遵循国际周数计算规范
+- **北京时区**：业务日期统一 UTC+8，避免时区混乱
+- **乐观锁并发**：version 字段防止并发编辑冲突
+
+### 安全防护
+- **登录防爆破**：IP + 手机号双重限频，自动锁定
+- **单设备登录**：同一账号仅允许一台设备在线
+- **会话滑动过期**：30 天有效，活跃自动续期
+- **媒体鉴权**：R2 私有桶，Worker 校验身份后返回
+
+---
+
+## 📱 功能模块
+
+| 角色 | 功能 |
 |------|------|
-| 全球加速 | Cloudflare 边缘网络，全球 300+ 节点 |
-| 零运维 | 无服务器架构，无需维护服务器 |
-| 免费部署 | 全部使用 Cloudflare 免费套餐 |
-| 安全可靠 | 私有存储桶 + Worker 代理访问 |
-| 单设备登录 | 防止账号被盗用，保障数据安全 |
-| ISO 8601 标准 | 严格的周数计算，跨年边界准确 |
+| **教师** | 发布每日食谱、发布每周食谱、上传图片视频、查看发布历史 |
+| **家长** | 查看当日食谱、查看本周食谱、按日期范围查询、注册绑定学生 |
+| **管理员** | 管理教师账号、管理家长账号、管理班级学生、学期配置、操作日志、食谱统计、数据归档 |
 
-## 技术架构
+---
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Cloudflare Edge                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
-│  │   Workers   │  │     D1      │  │     R2      │      │
-│  │  (API层)    │  │  (SQLite)   │  │  (存储桶)   │      │
-│  └─────────────┘  └─────────────┘  └─────────────┘      │
-│         │                │                │              │
-│         └───────┬────────┴────────┬───────┘              │
-│                 │                 │                      │
-│            ┌────▼────┐      ┌────▼────┐                 │
-│            │   KV    │      │  Cache  │                 │
-│            │ (缓存)  │      │  API    │                 │
-│            └─────────┘      └─────────┘                 │
-└─────────────────────────────────────────────────────────┘
-```
+## 🛠️ 快速部署
 
-## 快速开始
+### 前置条件
+- Cloudflare 账号（免费套餐即可）
+- GitHub 账号
 
-### 环境要求
-
-- Node.js 18+
-- Wrangler CLI (`npm install -g wrangler`)
-- Cloudflare 账号
-
-### 本地开发
+### 一键部署步骤
 
 ```bash
-# 克隆项目
+# 1. 克隆仓库
 git clone https://github.com/ZedeX/campus-food-time-v2.git
 cd campus-food-time-v2
 
-# 安装依赖
+# 2. 安装依赖
 npm install
 
-# 本地开发
-npm run dev
-
-# 运行测试
-npm test
-```
-
-### 部署到 Cloudflare
-
-```bash
-# 登录 Cloudflare
-wrangler login
-
-# 创建资源
+# 3. 创建 Cloudflare 资源
 wrangler d1 create campus-food-data-v2
 wrangler kv namespace create CACHE
 wrangler r2 bucket create campus-food-v2
 
-# 更新 wrangler.toml 中的资源 ID
+# 4. 更新 wrangler.toml 中的资源 ID
 
-# 执行数据库迁移
+# 5. 执行数据库迁移
 wrangler d1 execute campus-food-data-v2 --remote --file=worker/src/db/0001_initial_schema.sql
 wrangler d1 execute campus-food-data-v2 --remote --file=worker/src/db/seed.sql
 
-# 设置密钥
+# 6. 设置密钥
 wrangler secret put JWT_SECRET
 wrangler secret put ADMIN_USERNAME
 wrangler secret put ADMIN_PASSWORD
 
-# 部署
-npm run deploy
+# 7. 部署
+wrangler deploy
 ```
 
-## 项目结构
+### GitHub 自动部署
 
+1. 在 GitHub 仓库设置中添加 Secrets：
+   - `CLOUDFLARE_API_TOKEN`：Cloudflare API Token
+   - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare Account ID
+
+2. 推送代码到 `main` 分支，GitHub Actions 自动触发部署
+
+---
+
+## 🧪 测试
+
+```bash
+# 运行单元测试
+node --test tests/unit/utils.test.js
+
+# 16 个测试覆盖：
+# - ISO 8601 周数计算（边界日期验证）
+# - 手机号验证
+# - 身份证号验证
+# - 菜名归一化
 ```
-campus-food-time-v2/
-├── worker/                 # Cloudflare Worker 后端
-│   └── src/
-│       ├── db/            # 数据库 schema 和 seed
-│       ├── routes/        # API 路由处理器
-│       ├── services/      # 业务逻辑层
-│       └── utils/         # 工具函数
-├── frontend/              # 前端页面 (Vanilla JS)
-│   ├── admin/            # 管理员界面
-│   ├── teacher/          # 教师界面
-│   ├── parent/           # 家长界面
-│   └── assets/           # CSS/JS 资源
-├── tests/                 # 测试文件
-├── PRD.md                 # 产品需求文档
-└── wrangler.toml          # Cloudflare 配置
-```
 
-## API 端点
+---
 
-| 端点 | 说明 |
-|------|------|
-| `POST /auth/teacher/login` | 教师登录 |
-| `POST /auth/parent/login` | 家长登录 |
-| `POST /auth/admin/login` | 管理员登录 |
-| `GET /api/recipes/daily/:date` | 获取每日食谱 |
-| `PUT /api/recipes/daily/:date` | 发布每日食谱 |
-| `GET /api/recipes/weekly/:yearWeek` | 获取每周食谱 |
-| `PUT /api/recipes/weekly/:yearWeek` | 发布每周食谱 |
-| `POST /api/upload/presign` | 获取预签名上传 URL |
-| `GET /media/:id` | 获取媒体文件 |
+## 📊 数据模型
 
-## 安全特性
+- **users**：教师、家长、管理员
+- **sessions**：登录会话（单设备）
+- **schools**：学校信息
+- **classes**：班级（格式：class:学校:年级:班号）
+- **students**：学生信息
+- **parent_student_relations**：家长-学生多对多关联
+- **daily_recipes**：每日食谱（ID：daily_学校_日期）
+- **weekly_recipes**：每周食谱（ID：weekly_学校_年周）
+- **recipe_media**：食谱媒体文件
+- **recipe_snapshots**：食谱历史快照
+- **semesters**：学期配置
+- **operation_logs**：操作日志（仅 INSERT）
+- **dish_aliases**：菜名别名归一化
 
-- **登录防爆破**：失败次数限制 + 自动锁定
-- **单设备登录**：同一账号只能在一台设备登录
-- **私有存储桶**：R2 私有模式，通过 Worker 代理访问
-- **会话滑动过期**：30 天有效期，活跃时自动延长
-- **操作审计日志**：完整记录所有操作，不可删除
+---
 
-## 许可证
+## 🌐 访问地址
+
+- **演示地址**：https://campus-food-time-v2.flychina2008.workers.dev
+- **GitHub**：https://github.com/ZedeX/campus-food-time-v2
+
+---
+
+## 📄 许可证
 
 MIT License
 
 ---
 
-**让校园食堂更透明，让家长更安心。**
+## 🙏 致谢
 
-[在线演示](https://campus-food-time-v2.flychina2008.workers.dev) | [问题反馈](https://github.com/ZedeX/campus-food-time-v2/issues)
+- Cloudflare 提供免费的边缘计算平台
+- Flatpickr 提供优雅的日期选择组件
+- 所有为学校食堂信息化努力的教育工作者
