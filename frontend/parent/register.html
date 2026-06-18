@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家长注册 - 校园食光</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+  <div class="center-page">
+    <div class="auth-card">
+      <a href="/" class="auth-back">← 返回首页</a>
+      <h1 class="auth-card-title">家长注册</h1>
+      <p class="auth-card-subtitle">填写学生信息完成注册</p>
+
+      <form id="register-form" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label" for="phone">手机号 <span class="required">*</span></label>
+          <input type="tel" id="phone" name="phone" class="form-input" placeholder="请输入手机号" maxlength="11" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">密码 <span class="required">*</span></label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码（至少6位）" required>
+          <div class="form-hint">密码长度至少6位</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="studentName">学生姓名 <span class="required">*</span></label>
+          <input type="text" id="studentName" name="studentName" class="form-input" placeholder="请输入学生姓名" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="studentIdNumber">学生身份证号 <span class="required">*</span></label>
+          <input type="text" id="studentIdNumber" name="studentIdNumber" class="form-input" placeholder="请输入学生身份证号" maxlength="18" required>
+          <div class="form-hint">用于身份验证，将完整保存</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="classId">班级 <span class="required">*</span></label>
+          <select id="classId" name="classId" class="form-select" required>
+            <option value="">请选择班级</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit-btn">
+          <span id="btn-text">注册</span>
+        </button>
+      </form>
+
+      <p class="text-center text-muted text-sm mt-lg">
+        已有账号？<a href="/parent/login.html">直接登录</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="/assets/js/utils/storage.js"></script>
+  <script src="/assets/js/components/notification.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    (function () {
+      // 加载班级列表
+      function loadClasses() {
+        api.get('/api/classes').then(function (res) {
+          var list = (res.data || []);
+          var select = document.getElementById('classId');
+          list.forEach(function (c) {
+            var opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            select.appendChild(opt);
+          });
+        }).catch(function () {
+          showNotification('班级列表加载失败，请刷新重试', 'error');
+        });
+      }
+
+      loadClasses();
+
+      var form = document.getElementById('register-form');
+      var submitBtn = document.getElementById('submit-btn');
+      var btnText = document.getElementById('btn-text');
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        var phone = document.getElementById('phone').value.trim();
+        var password = document.getElementById('password').value;
+        var studentName = document.getElementById('studentName').value.trim();
+        var studentIdNumber = document.getElementById('studentIdNumber').value.trim();
+        var classId = document.getElementById('classId').value;
+
+        // 客户端校验
+        if (!phone) {
+          showNotification('请输入手机号', 'warning');
+          return;
+        }
+        if (!/^1\d{10}$/.test(phone)) {
+          showNotification('请输入正确的11位手机号', 'warning');
+          return;
+        }
+        if (!password || password.length < 6) {
+          showNotification('密码长度至少6位', 'warning');
+          return;
+        }
+        if (!studentName) {
+          showNotification('请输入学生姓名', 'warning');
+          return;
+        }
+        // 姓名格式校验（中文或英文）
+        if (!/^[\u4e00-\u9fa5·]{2,}$|^[a-zA-Z][a-zA-Z\s]{1,}$/.test(studentName)) {
+          showNotification('学生姓名格式不正确', 'warning');
+          return;
+        }
+        if (!studentIdNumber) {
+          showNotification('请输入学生身份证号', 'warning');
+          return;
+        }
+        // 身份证号格式校验
+        if (!/^\d{17}[\dXx]$/.test(studentIdNumber)) {
+          showNotification('身份证号格式不正确（18位）', 'warning');
+          return;
+        }
+        if (!classId) {
+          showNotification('请选择班级', 'warning');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        btnText.textContent = '注册中...';
+
+        api.post('/auth/parent/register', {
+          phone: phone,
+          password: password,
+          studentName: studentName,
+          studentIdNumber: studentIdNumber,
+          classId: classId
+        }).then(function (res) {
+          var data = res.data || {};
+          Storage.saveAuth({
+            token: data.token,
+            user: data.user,
+            role: 'parent'
+          });
+          showNotification('注册成功，正在跳转...', 'success');
+          setTimeout(function () {
+            window.location.href = '/parent/dashboard.html';
+          }, 500);
+        }).catch(function () {
+          submitBtn.disabled = false;
+          btnText.textContent = '注册';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

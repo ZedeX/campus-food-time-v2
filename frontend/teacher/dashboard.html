@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>教师端 - 校园食光</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+</head>
+<body>
+  <div class="page">
+    <!-- 顶部导航 -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="header-brand-icon">🍽️</div>
+        <span>校园食光 · 教师端</span>
+      </div>
+      <div class="header-actions">
+        <span class="header-user" id="user-name"></span>
+        <button class="btn btn-ghost btn-sm" id="logout-btn">退出</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="container">
+        <!-- 标签切换 -->
+        <div class="flex items-center justify-between mb-lg" style="flex-wrap:wrap; gap:16px;">
+          <div class="tabs">
+            <button class="tab active" data-tab="daily" id="tab-daily">日食谱</button>
+            <button class="tab" data-tab="weekly" id="tab-weekly">周食谱</button>
+          </div>
+          <div class="flex gap-sm">
+            <span class="badge badge-info" id="draft-status">草稿已保存</span>
+          </div>
+        </div>
+
+        <!-- 日食谱面板 -->
+        <div id="panel-daily" class="tab-panel">
+          <div class="date-nav">
+            <button class="btn btn-secondary btn-sm" id="daily-prev">‹ 前一天</button>
+            <div class="date-nav-info">
+              <span class="date-nav-date" id="daily-date-text"></span>
+              <span class="date-nav-week" id="daily-week-text"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="daily-next">后一天 ›</button>
+            <input type="text" id="daily-datepicker" style="width:1px; opacity:0; position:absolute; pointer-events:none;" readonly>
+            <button class="btn btn-secondary btn-sm" id="daily-pick">📅 选择日期</button>
+          </div>
+
+          <div class="card mb-lg">
+            <div class="card-header">
+              <span class="card-title">图片上传（最多6张）</span>
+              <span class="text-xs text-muted">每张图片需填写菜名</span>
+            </div>
+            <div id="daily-image-uploader"></div>
+          </div>
+
+          <div class="card mb-lg">
+            <div class="card-header">
+              <span class="card-title">视频上传（最多4个）</span>
+              <span class="text-xs text-muted">推荐30秒以内</span>
+            </div>
+            <div id="daily-video-uploader"></div>
+          </div>
+
+          <div class="card mb-lg">
+            <div class="card-header">
+              <span class="card-title">备注</span>
+            </div>
+            <textarea id="daily-notes" class="form-textarea" placeholder="可填写今日特色、食材说明等..." rows="3"></textarea>
+          </div>
+
+          <div class="flex gap-sm" style="justify-content:flex-end;">
+            <button class="btn btn-secondary" id="daily-discard">放弃修改</button>
+            <button class="btn btn-primary btn-lg" id="daily-save">
+              <span id="daily-save-text">保存食谱</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 周食谱面板 -->
+        <div id="panel-weekly" class="tab-panel hidden">
+          <div class="date-nav">
+            <button class="btn btn-secondary btn-sm" id="weekly-prev">‹ 上一周</button>
+            <div class="date-nav-info">
+              <span class="date-nav-date" id="weekly-week-text"></span>
+              <span class="date-nav-week" id="weekly-range-text"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="weekly-next">下一周 ›</button>
+            <input type="text" id="weekly-datepicker" style="width:1px; opacity:0; position:absolute; pointer-events:none;" readonly>
+            <button class="btn btn-secondary btn-sm" id="weekly-pick">📅 选择周</button>
+          </div>
+
+          <div class="card mb-lg">
+            <div class="card-header">
+              <span class="card-title">图片上传（最多5张）</span>
+              <span class="text-xs text-muted">周食谱为整体菜单图片，与日食谱独立</span>
+            </div>
+            <div id="weekly-image-uploader"></div>
+          </div>
+
+          <div class="card mb-lg">
+            <div class="card-header">
+              <span class="card-title">备注</span>
+            </div>
+            <textarea id="weekly-notes" class="form-textarea" placeholder="可填写本周营养搭配说明等..." rows="3"></textarea>
+          </div>
+
+          <div class="flex gap-sm" style="justify-content:flex-end;">
+            <button class="btn btn-secondary" id="weekly-discard">放弃修改</button>
+            <button class="btn btn-primary btn-lg" id="weekly-save">
+              <span id="weekly-save-text">保存食谱</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/utils/storage.js"></script>
+  <script src="/assets/js/components/notification.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/components/image-uploader.js"></script>
+  <script src="/assets/js/components/video-uploader.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // ---------- 登录状态检测 ----------
+      if (!Storage.getToken() || Storage.getRole() !== 'teacher') {
+        window.location.replace('/teacher/login.html');
+        return;
+      }
+
+      var user = Storage.getUser();
+      if (user && user.name) {
+        document.getElementById('user-name').textContent = '您好，' + user.name;
+      }
+
+      // ---------- 工具函数 ----------
+      var WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+      function formatDate(date) {
+        var y = date.getFullYear();
+        var m = String(date.getMonth() + 1).padStart(2, '0');
+        var d = String(date.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+      }
+
+      function formatDateDisplay(dateStr) {
+        if (!dateStr) return '';
+        var parts = dateStr.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WEEKDAYS[d.getDay()];
+      }
+
+      // ISO 周数计算
+      function getISOWeek(date) {
+        var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        var dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        var weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return { year: d.getUTCFullYear(), week: weekNum };
+      }
+
+      function getWeekRange(year, week) {
+        var simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+        var dow = simple.getUTCDay();
+        var ISOweekStart = new Date(simple);
+        if (dow <= 4) {
+          ISOweekStart.setDate(simple.getDate() - simple.getUTCDay() + 1);
+        } else {
+          ISOweekStart.setDate(simple.getDate() + 8 - simple.getUTCDay());
+        }
+        var ISOweekEnd = new Date(ISOweekStart);
+        ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
+        return { start: ISOweekStart, end: ISOweekEnd };
+      }
+
+      function formatWeekKey(year, week) {
+        return year + '-W' + String(week).padStart(2, '0');
+      }
+
+      function parseWeekKey(weekKey) {
+        var parts = weekKey.split('-W');
+        return { year: parseInt(parts[0]), week: parseInt(parts[1]) };
+      }
+
+      // ---------- 状态 ----------
+      var state = {
+        tab: 'daily',
+        dailyDate: formatDate(new Date()),
+        weeklyWeek: (function () {
+          var w = getISOWeek(new Date());
+          return formatWeekKey(w.year, w.week);
+        })(),
+        dailyVersion: null,
+        weeklyVersion: null,
+        dailyLoaded: false,
+        weeklyLoaded: false
+      };
+
+      // ---------- 退出登录 ----------
+      document.getElementById('logout-btn').addEventListener('click', function () {
+        if (!confirm('确定要退出登录吗？')) return;
+        api.post('/auth/logout', {}).catch(function () {}).then(function () {
+          Storage.clearAuth();
+          showNotification('已安全退出', 'success');
+          setTimeout(function () {
+            window.location.href = '/';
+          }, 500);
+        });
+      });
+
+      // ---------- 标签切换 ----------
+      function switchTab(tab) {
+        state.tab = tab;
+        document.querySelectorAll('.tab').forEach(function (t) {
+          t.classList.toggle('active', t.dataset.tab === tab);
+        });
+        document.getElementById('panel-daily').classList.toggle('hidden', tab !== 'daily');
+        document.getElementById('panel-weekly').classList.toggle('hidden', tab !== 'weekly');
+        updateHash();
+
+        if (tab === 'daily' && !state.dailyLoaded) {
+          loadDailyRecipe();
+        } else if (tab === 'weekly' && !state.weeklyLoaded) {
+          loadWeeklyRecipe();
+        }
+      }
+
+      document.getElementById('tab-daily').addEventListener('click', function () { switchTab('daily'); });
+      document.getElementById('tab-weekly').addEventListener('click', function () { switchTab('weekly'); });
+
+      // ---------- URL hash ----------
+      function updateHash() {
+        var params = [];
+        params.push('tab=' + state.tab);
+        if (state.tab === 'daily') {
+          params.push('date=' + state.dailyDate);
+        } else {
+          params.push('week=' + state.weeklyWeek);
+        }
+        window.location.hash = params.join('&');
+      }
+
+      function parseHash() {
+        var hash = window.location.hash.slice(1);
+        if (!hash) return;
+        var params = {};
+        hash.split('&').forEach(function (kv) {
+          var p = kv.split('=');
+          if (p.length === 2) params[p[0]] = decodeURIComponent(p[1]);
+        });
+        if (params.tab === 'weekly') {
+          state.tab = 'weekly';
+          if (params.week) state.weeklyWeek = params.week;
+        } else {
+          state.tab = 'daily';
+          if (params.date) state.dailyDate = params.date;
+        }
+      }
+
+      // ---------- 日食谱 ----------
+      var dailyImageUploader = null;
+      var dailyVideoUploader = null;
+      var dailyDatepicker = null;
+
+      function initDailyDatepicker() {
+        dailyDatepicker = flatpickr('#daily-datepicker', {
+          locale: 'zh',
+          dateFormat: 'Y-m-d',
+          defaultDate: state.dailyDate,
+          onChange: function (selectedDates, dateStr) {
+            if (dateStr && dateStr !== state.dailyDate) {
+              state.dailyDate = dateStr;
+              updateDailyDateDisplay();
+              loadDailyRecipe();
+            }
+          }
+        });
+
+        document.getElementById('daily-pick').addEventListener('click', function () {
+          dailyDatepicker.open();
+        });
+
+        document.getElementById('daily-prev').addEventListener('click', function () {
+          var d = new Date(state.dailyDate);
+          d.setDate(d.getDate() - 1);
+          state.dailyDate = formatDate(d);
+          dailyDatepicker.setDate(state.dailyDate);
+          updateDailyDateDisplay();
+          loadDailyRecipe();
+        });
+
+        document.getElementById('daily-next').addEventListener('click', function () {
+          var d = new Date(state.dailyDate);
+          d.setDate(d.getDate() + 1);
+          state.dailyDate = formatDate(d);
+          dailyDatepicker.setDate(state.dailyDate);
+          updateDailyDateDisplay();
+          loadDailyRecipe();
+        });
+      }
+
+      function updateDailyDateDisplay() {
+        document.getElementById('daily-date-text').textContent = formatDateDisplay(state.dailyDate);
+        var d = new Date(state.dailyDate);
+        var w = getISOWeek(d);
+        document.getElementById('daily-week-text').textContent = formatWeekKey(w.year, w.week);
+      }
+
+      function initDailyUploaders() {
+        dailyImageUploader = new ImageUploader({
+          container: document.getElementById('daily-image-uploader'),
+          max: 6,
+          withDishName: true,
+          defaultTitles: ['全盘', '全盘', '点心', '点心', '可选', '可选'],
+          date: state.dailyDate,
+          type: 'daily',
+          onChange: function () {
+            markDraftChanged('daily');
+          }
+        });
+
+        dailyVideoUploader = new VideoUploader({
+          container: document.getElementById('daily-video-uploader'),
+          max: 4,
+          defaultTitles: ['加工过程', '加工过程', '可选', '可选'],
+          date: state.dailyDate,
+          type: 'daily',
+          onChange: function () {
+            markDraftChanged('daily');
+          }
+        });
+
+        document.getElementById('daily-notes').addEventListener('input', function () {
+          markDraftChanged('daily');
+        });
+      }
+
+      function loadDailyRecipe() {
+        updateDailyDateDisplay();
+        dailyImageUploader.setDate(state.dailyDate, 'daily');
+        dailyVideoUploader.setDate(state.dailyDate, 'daily');
+
+        // 检查是否有草稿
+        var draft = Storage.getDraft('daily', state.dailyDate);
+        var hasDraft = draft && draft._savedAt;
+
+        showNotification('正在加载食谱，请稍候...', 'info', 1500);
+
+        api.get('/api/recipes/daily/' + state.dailyDate).then(function (res) {
+          var data = res.data;
+          if (data && data.id) {
+            state.dailyVersion = data.version;
+            // 重建 uploader
+            dailyImageUploader.destroy();
+            dailyVideoUploader.destroy();
+            document.getElementById('daily-image-uploader').innerHTML = '';
+            document.getElementById('daily-video-uploader').innerHTML = '';
+            initDailyUploaders();
+
+            var images = (data.images || []).map(function (img) {
+              return {
+                id: img.id,
+                title: img.title || '',
+                dishName: img.dishName || '',
+                url: '/media/' + img.id,
+                filename: img.filename || ''
+              };
+            });
+            var videos = (data.videos || []).map(function (v) {
+              return {
+                id: v.id,
+                title: v.title || '',
+                url: '/media/' + v.id,
+                filename: v.filename || ''
+              };
+            });
+
+            // 重新初始化带初始数据
+            dailyImageUploader = new ImageUploader({
+              container: document.getElementById('daily-image-uploader'),
+              max: 6,
+              withDishName: true,
+              defaultTitles: ['全盘', '全盘', '点心', '点心', '可选', '可选'],
+              date: state.dailyDate,
+              type: 'daily',
+              initialData: images,
+              onChange: function () { markDraftChanged('daily'); }
+            });
+            dailyVideoUploader = new VideoUploader({
+              container: document.getElementById('daily-video-uploader'),
+              max: 4,
+              defaultTitles: ['加工过程', '加工过程', '可选', '可选'],
+              date: state.dailyDate,
+              type: 'daily',
+              initialData: videos,
+              onChange: function () { markDraftChanged('daily'); }
+            });
+
+            document.getElementById('daily-notes').value = data.notes || '';
+          } else {
+            // 无食谱，清空
+            resetDailyForm();
+          }
+          state.dailyLoaded = true;
+          clearDraftChanged('daily');
+
+          // 如果有草稿，提示恢复
+          if (hasDraft) {
+            showNotification('检测到未保存的草稿，可点击"放弃修改"清除', 'info', 4000);
+          }
+        }).catch(function (err) {
+          if (err && err.code === 4001) {
+            // 食谱不存在
+            resetDailyForm();
+            state.dailyLoaded = true;
+            clearDraftChanged('daily');
+          } else {
+            showNotification('加载食谱失败，请稍后重试', 'error');
+          }
+        });
+
+        updateHash();
+      }
+
+      function resetDailyForm() {
+        dailyImageUploader.destroy();
+        dailyVideoUploader.destroy();
+        document.getElementById('daily-image-uploader').innerHTML = '';
+        document.getElementById('daily-video-uploader').innerHTML = '';
+        initDailyUploaders();
+        document.getElementById('daily-notes').value = '';
+        state.dailyVersion = null;
+      }
+
+      function saveDailyRecipe() {
+        var saveBtn = document.getElementById('daily-save');
+        var saveText = document.getElementById('daily-save-text');
+        saveBtn.disabled = true;
+        saveText.textContent = '保存中...';
+
+        // 先上传所有未上传的文件
+        showNotification('正在上传文件，请稍候...', 'info', 2000);
+
+        Promise.all([
+          dailyImageUploader.uploadAll(),
+          dailyVideoUploader.uploadAll()
+        ]).then(function () {
+          var images = dailyImageUploader.getData(true).map(function (img) {
+            return {
+              title: img.title,
+              dishName: img.dishName,
+              url: img.url,
+              filename: img.filename,
+              order: img.order
+            };
+          });
+          var videos = dailyVideoUploader.getData(true).map(function (v) {
+            return {
+              title: v.title,
+              url: v.url,
+              filename: v.filename,
+              order: v.order
+            };
+          });
+          var notes = document.getElementById('daily-notes').value;
+
+          var body = {
+            images: images,
+            videos: videos,
+            notes: notes
+          };
+
+          var headers = {};
+          if (state.dailyVersion) {
+            headers['If-Match'] = state.dailyVersion;
+          }
+
+          return api.put('/api/recipes/daily/' + state.dailyDate, body, { headers: headers });
+        }).then(function (res) {
+          var data = res.data || {};
+          state.dailyVersion = data.version;
+          Storage.clearDraft('daily', state.dailyDate);
+          clearDraftChanged('daily');
+          showNotification('食谱保存成功', 'success');
+        }).catch(function (err) {
+          if (err && err.code === 409) {
+            showNotification('食谱已被他人修改，请刷新后重试', 'warning');
+          } else {
+            showNotification('保存失败，请稍后重试', 'error');
+          }
+        }).then(function () {
+          saveBtn.disabled = false;
+          saveText.textContent = '保存食谱';
+        });
+      }
+
+      document.getElementById('daily-save').addEventListener('click', saveDailyRecipe);
+      document.getElementById('daily-discard').addEventListener('click', function () {
+        if (!confirm('确定放弃当前修改吗？')) return;
+        Storage.clearDraft('daily', state.dailyDate);
+        loadDailyRecipe();
+      });
+
+      // ---------- 周食谱 ----------
+      var weeklyImageUploader = null;
+      var weeklyDatepicker = null;
+
+      function initWeeklyDatepicker() {
+        var weekInfo = parseWeekKey(state.weeklyWeek);
+        var range = getWeekRange(weekInfo.year, weekInfo.week);
+
+        weeklyDatepicker = flatpickr('#weekly-datepicker', {
+          locale: 'zh',
+          dateFormat: 'Y-m-d',
+          defaultDate: range.start,
+          onChange: function (selectedDates, dateStr) {
+            if (!dateStr) return;
+            var d = new Date(dateStr);
+            var w = getISOWeek(d);
+            var newWeek = formatWeekKey(w.year, w.week);
+            if (newWeek !== state.weeklyWeek) {
+              state.weeklyWeek = newWeek;
+              updateWeeklyWeekDisplay();
+              loadWeeklyRecipe();
+            }
+          }
+        });
+
+        document.getElementById('weekly-pick').addEventListener('click', function () {
+          weeklyDatepicker.open();
+        });
+
+        document.getElementById('weekly-prev').addEventListener('click', function () {
+          var info = parseWeekKey(state.weeklyWeek);
+          var newWeek = info.week - 1;
+          var newYear = info.year;
+          if (newWeek < 1) {
+            newYear--;
+            newWeek = 52;
+          }
+          state.weeklyWeek = formatWeekKey(newYear, newWeek);
+          var range = getWeekRange(newYear, newWeek);
+          weeklyDatepicker.setDate(range.start);
+          updateWeeklyWeekDisplay();
+          loadWeeklyRecipe();
+        });
+
+        document.getElementById('weekly-next').addEventListener('click', function () {
+          var info = parseWeekKey(state.weeklyWeek);
+          var newWeek = info.week + 1;
+          var newYear = info.year;
+          if (newWeek > 52) {
+            newYear++;
+            newWeek = 1;
+          }
+          state.weeklyWeek = formatWeekKey(newYear, newWeek);
+          var range = getWeekRange(newYear, newWeek);
+          weeklyDatepicker.setDate(range.start);
+          updateWeeklyWeekDisplay();
+          loadWeeklyRecipe();
+        });
+      }
+
+      function updateWeeklyWeekDisplay() {
+        var info = parseWeekKey(state.weeklyWeek);
+        var range = getWeekRange(info.year, info.week);
+        document.getElementById('weekly-week-text').textContent = info.year + '年 第' + info.week + '周';
+        document.getElementById('weekly-range-text').textContent =
+          formatDate(range.start) + ' ~ ' + formatDate(range.end);
+      }
+
+      function initWeeklyUploader() {
+        weeklyImageUploader = new ImageUploader({
+          container: document.getElementById('weekly-image-uploader'),
+          max: 5,
+          withDishName: false,
+          defaultTitles: ['风味餐菜单', '健康餐菜单', '点心菜单', '可选', '可选'],
+          date: state.weeklyWeek,
+          type: 'weekly',
+          onChange: function () {
+            markDraftChanged('weekly');
+          }
+        });
+
+        document.getElementById('weekly-notes').addEventListener('input', function () {
+          markDraftChanged('weekly');
+        });
+      }
+
+      function loadWeeklyRecipe() {
+        updateWeeklyWeekDisplay();
+        weeklyImageUploader.setDate(state.weeklyWeek, 'weekly');
+
+        showNotification('正在加载周食谱，请稍候...', 'info', 1500);
+
+        api.get('/api/recipes/weekly/' + state.weeklyWeek).then(function (res) {
+          var data = res.data;
+          if (data && data.id) {
+            state.weeklyVersion = data.version;
+            weeklyImageUploader.destroy();
+            document.getElementById('weekly-image-uploader').innerHTML = '';
+
+            var images = (data.images || []).map(function (img) {
+              return {
+                id: img.id,
+                title: img.title || '',
+                url: '/media/' + img.id,
+                filename: img.filename || ''
+              };
+            });
+
+            weeklyImageUploader = new ImageUploader({
+              container: document.getElementById('weekly-image-uploader'),
+              max: 5,
+              withDishName: false,
+              defaultTitles: ['风味餐菜单', '健康餐菜单', '点心菜单', '可选', '可选'],
+              date: state.weeklyWeek,
+              type: 'weekly',
+              initialData: images,
+              onChange: function () { markDraftChanged('weekly'); }
+            });
+
+            document.getElementById('weekly-notes').value = data.notes || '';
+          } else {
+            resetWeeklyForm();
+          }
+          state.weeklyLoaded = true;
+          clearDraftChanged('weekly');
+        }).catch(function (err) {
+          if (err && err.code === 4001) {
+            resetWeeklyForm();
+            state.weeklyLoaded = true;
+            clearDraftChanged('weekly');
+          } else {
+            showNotification('加载周食谱失败，请稍后重试', 'error');
+          }
+        });
+
+        updateHash();
+      }
+
+      function resetWeeklyForm() {
+        weeklyImageUploader.destroy();
+        document.getElementById('weekly-image-uploader').innerHTML = '';
+        initWeeklyUploader();
+        document.getElementById('weekly-notes').value = '';
+        state.weeklyVersion = null;
+      }
+
+      function saveWeeklyRecipe() {
+        var saveBtn = document.getElementById('weekly-save');
+        var saveText = document.getElementById('weekly-save-text');
+        saveBtn.disabled = true;
+        saveText.textContent = '保存中...';
+
+        showNotification('正在上传文件，请稍候...', 'info', 2000);
+
+        weeklyImageUploader.uploadAll().then(function () {
+          var images = weeklyImageUploader.getData(true).map(function (img) {
+            return {
+              title: img.title,
+              url: img.url,
+              filename: img.filename,
+              order: img.order
+            };
+          });
+          var notes = document.getElementById('weekly-notes').value;
+
+          var body = {
+            images: images,
+            notes: notes
+          };
+
+          var headers = {};
+          if (state.weeklyVersion) {
+            headers['If-Match'] = state.weeklyVersion;
+          }
+
+          return api.put('/api/recipes/weekly/' + state.weeklyWeek, body, { headers: headers });
+        }).then(function (res) {
+          var data = res.data || {};
+          state.weeklyVersion = data.version;
+          Storage.clearDraft('weekly', state.weeklyWeek);
+          clearDraftChanged('weekly');
+          showNotification('周食谱保存成功', 'success');
+        }).catch(function (err) {
+          if (err && err.code === 409) {
+            showNotification('食谱已被他人修改，请刷新后重试', 'warning');
+          } else {
+            showNotification('保存失败，请稍后重试', 'error');
+          }
+        }).then(function () {
+          saveBtn.disabled = false;
+          saveText.textContent = '保存食谱';
+        });
+      }
+
+      document.getElementById('weekly-save').addEventListener('click', saveWeeklyRecipe);
+      document.getElementById('weekly-discard').addEventListener('click', function () {
+        if (!confirm('确定放弃当前修改吗？')) return;
+        Storage.clearDraft('weekly', state.weeklyWeek);
+        loadWeeklyRecipe();
+      });
+
+      // ---------- 草稿自动保存 ----------
+      var draftChanged = { daily: false, weekly: false };
+      var draftStatus = document.getElementById('draft-status');
+
+      function markDraftChanged(type) {
+        draftChanged[type] = true;
+        draftStatus.textContent = '有未保存修改';
+        draftStatus.className = 'badge badge-warning';
+      }
+
+      function clearDraftChanged(type) {
+        draftChanged[type] = false;
+        if (!draftChanged.daily && !draftChanged.weekly) {
+          draftStatus.textContent = '草稿已保存';
+          draftStatus.className = 'badge badge-info';
+        }
+      }
+
+      function autoSaveDraft() {
+        if (state.tab === 'daily' && draftChanged.daily) {
+          Storage.setDraft('daily', state.dailyDate, {
+            notes: document.getElementById('daily-notes').value,
+            images: dailyImageUploader.getData(),
+            videos: dailyVideoUploader.getData()
+          });
+        }
+        if (state.tab === 'weekly' && draftChanged.weekly) {
+          Storage.setDraft('weekly', state.weeklyWeek, {
+            notes: document.getElementById('weekly-notes').value,
+            images: weeklyImageUploader.getData()
+          });
+        }
+      }
+
+      // 每10秒自动保存草稿
+      setInterval(autoSaveDraft, 10000);
+
+      // ---------- 初始化 ----------
+      parseHash();
+      initDailyDatepicker();
+      initDailyUploaders();
+      initWeeklyDatepicker();
+      initWeeklyUploader();
+      updateDailyDateDisplay();
+      updateWeeklyWeekDisplay();
+
+      // 根据初始 tab 加载
+      if (state.tab === 'weekly') {
+        switchTab('weekly');
+      } else {
+        switchTab('daily');
+      }
+
+      // 监听 hash 变化（前进/后退）
+      window.addEventListener('hashchange', function () {
+        parseHash();
+        if (state.tab === 'daily') {
+          switchTab('daily');
+          loadDailyRecipe();
+        } else {
+          switchTab('weekly');
+          loadWeeklyRecipe();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家长登录 - 校园食光</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+  <div class="center-page">
+    <div class="auth-card">
+      <a href="/" class="auth-back">← 返回首页</a>
+      <h1 class="auth-card-title">家长登录</h1>
+      <p class="auth-card-subtitle">使用手机号和密码登录</p>
+
+      <form id="login-form" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label" for="phone">手机号 <span class="required">*</span></label>
+          <input type="tel" id="phone" name="phone" class="form-input" placeholder="请输入手机号" maxlength="11" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">密码 <span class="required">*</span></label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit-btn">
+          <span id="btn-text">登录</span>
+        </button>
+      </form>
+
+      <p class="text-center text-muted text-sm mt-lg">
+        还没有账号？<a href="/parent/register.html">立即注册</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="/assets/js/utils/storage.js"></script>
+  <script src="/assets/js/components/notification.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    (function () {
+      // 已登录则跳转
+      if (Storage.getToken() && Storage.getRole() === 'parent') {
+        api.get('/auth/check').then(function () {
+          window.location.replace('/parent/dashboard.html');
+        }).catch(function () {
+          Storage.clearAuth();
+        });
+      }
+
+      var form = document.getElementById('login-form');
+      var submitBtn = document.getElementById('submit-btn');
+      var btnText = document.getElementById('btn-text');
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        var phone = document.getElementById('phone').value.trim();
+        var password = document.getElementById('password').value;
+
+        if (!phone) {
+          showNotification('请输入手机号', 'warning');
+          return;
+        }
+        if (!/^1\d{10}$/.test(phone)) {
+          showNotification('请输入正确的11位手机号', 'warning');
+          return;
+        }
+        if (!password) {
+          showNotification('请输入密码', 'warning');
+          return;
+        }
+        if (password.length < 6) {
+          showNotification('密码长度至少6位', 'warning');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        btnText.textContent = '登录中...';
+
+        api.post('/auth/parent/login', {
+          phone: phone,
+          password: password
+        }).then(function (res) {
+          var data = res.data || {};
+          Storage.saveAuth({
+            token: data.token,
+            user: data.user,
+            role: 'parent'
+          });
+          showNotification('登录成功，正在跳转...', 'success');
+          setTimeout(function () {
+            window.location.href = '/parent/dashboard.html';
+          }, 500);
+        }).catch(function () {
+          submitBtn.disabled = false;
+          btnText.textContent = '登录';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

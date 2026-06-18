@@ -1,0 +1,42 @@
+name = "campus-food-time-v2"
+main = "worker/src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "campus-food-data-v2"
+database_id = "3b8c0406-e42e-4be9-878e-3f96a7212e93"
+
+# KV Namespace
+[[kv_namespaces]]
+binding = "CACHE"
+id = "d2f20eaab44445e6bcbe58da9630c4ec"
+
+# R2 Bucket
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "campus-food-v2"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+SCHOOL_NAME = "上海星河湾双语学校"
+SCHOOL_ID = "1"
+
+# Secrets (set via `wrangler secret put`):
+# PASSWORD_SECRET - password encryption/decryption secret
+# ADMIN_USERNAME - admin login username
+# ADMIN_PASSWORD - admin login password
+# DEBUG_TEACHER_PASSWORD - debug teacher account password (optional, not set in production)
+# DEBUG_PARENT_PASSWORD - debug parent account password (optional, not set in production)
+
+# Static assets for frontend
+[assets]
+directory = "./frontend"
+binding = "ASSETS"
+
+# Observability
+[observability]
+enabled = true

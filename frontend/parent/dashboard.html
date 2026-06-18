@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家长端 - 校园食光</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header-brand">
+        <div class="header-brand-icon">🍽️</div>
+        <span>校园食光 · 家长端</span>
+      </div>
+      <div class="header-actions">
+        <span class="header-user" id="user-name"></span>
+        <button class="btn btn-ghost btn-sm" id="logout-btn">退出</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="container">
+        <div class="flex items-center justify-between mb-lg" style="flex-wrap:wrap; gap:16px;">
+          <div class="tabs">
+            <button class="tab active" data-tab="daily" id="tab-daily">日食谱</button>
+            <button class="tab" data-tab="weekly" id="tab-weekly">周食谱</button>
+          </div>
+        </div>
+
+        <!-- 日食谱面板 -->
+        <div id="panel-daily" class="tab-panel">
+          <div class="date-nav">
+            <button class="btn btn-secondary btn-sm" id="daily-prev">‹ 前一天</button>
+            <div class="date-nav-info">
+              <span class="date-nav-date" id="daily-date-text"></span>
+              <span class="date-nav-week" id="daily-week-text"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="daily-next">后一天 ›</button>
+            <input type="text" id="daily-datepicker" style="width:1px; opacity:0; position:absolute; pointer-events:none;" readonly>
+            <button class="btn btn-secondary btn-sm" id="daily-pick">📅 选择日期</button>
+          </div>
+
+          <div id="daily-content">
+            <div class="empty-state">
+              <div class="empty-state-icon">🍽️</div>
+              <div class="empty-state-text">正在加载食谱...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 周食谱面板 -->
+        <div id="panel-weekly" class="tab-panel hidden">
+          <div class="date-nav">
+            <button class="btn btn-secondary btn-sm" id="weekly-prev">‹ 上一周</button>
+            <div class="date-nav-info">
+              <span class="date-nav-date" id="weekly-week-text"></span>
+              <span class="date-nav-week" id="weekly-range-text"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="weekly-next">下一周 ›</button>
+            <input type="text" id="weekly-datepicker" style="width:1px; opacity:0; position:absolute; pointer-events:none;" readonly>
+            <button class="btn btn-secondary btn-sm" id="weekly-pick">📅 选择周</button>
+          </div>
+
+          <div id="weekly-content">
+            <div class="empty-state">
+              <div class="empty-state-icon">📋</div>
+              <div class="empty-state-text">正在加载周食谱...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图片预览模态框 -->
+  <div id="preview-modal" class="modal-overlay hidden">
+    <div class="modal" style="max-width:900px;">
+      <div class="modal-header">
+        <span class="modal-title" id="preview-title">预览</span>
+        <button class="modal-close" id="preview-close">×</button>
+      </div>
+      <div class="modal-body text-center">
+        <img id="preview-img" src="" alt="预览" style="max-width:100%; max-height:70vh; margin:0 auto;">
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/utils/storage.js"></script>
+  <script src="/assets/js/components/notification.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // 登录状态检测
+      if (!Storage.getToken() || Storage.getRole() !== 'parent') {
+        window.location.replace('/parent/login.html');
+        return;
+      }
+
+      var user = Storage.getUser();
+      if (user && user.studentName) {
+        document.getElementById('user-name').textContent = user.studentName + ' 家长';
+      }
+
+      var WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+      function formatDate(date) {
+        var y = date.getFullYear();
+        var m = String(date.getMonth() + 1).padStart(2, '0');
+        var d = String(date.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+      }
+
+      function formatDateDisplay(dateStr) {
+        if (!dateStr) return '';
+        var parts = dateStr.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WEEKDAYS[d.getDay()];
+      }
+
+      function getISOWeek(date) {
+        var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        var dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        var weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return { year: d.getUTCFullYear(), week: weekNum };
+      }
+
+      function getWeekRange(year, week) {
+        var simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+        var dow = simple.getUTCDay();
+        var ISOweekStart = new Date(simple);
+        if (dow <= 4) {
+          ISOweekStart.setDate(simple.getDate() - simple.getUTCDay() + 1);
+        } else {
+          ISOweekStart.setDate(simple.getDate() + 8 - simple.getUTCDay());
+        }
+        var ISOweekEnd = new Date(ISOweekStart);
+        ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
+        return { start: ISOweekStart, end: ISOweekEnd };
+      }
+
+      function formatWeekKey(year, week) {
+        return year + '-W' + String(week).padStart(2, '0');
+      }
+
+      function parseWeekKey(weekKey) {
+        var parts = weekKey.split('-W');
+        return { year: parseInt(parts[0]), week: parseInt(parts[1]) };
+      }
+
+      function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      var state = {
+        tab: 'daily',
+        dailyDate: formatDate(new Date()),
+        weeklyWeek: (function () {
+          var w = getISOWeek(new Date());
+          return formatWeekKey(w.year, w.week);
+        })()
+      };
+
+      // 退出登录
+      document.getElementById('logout-btn').addEventListener('click', function () {
+        if (!confirm('确定要退出登录吗？')) return;
+        api.post('/auth/logout', {}).catch(function () {}).then(function () {
+          Storage.clearAuth();
+          showNotification('已安全退出', 'success');
+          setTimeout(function () { window.location.href = '/'; }, 500);
+        });
+      });
+
+      // 标签切换
+      function switchTab(tab) {
+        state.tab = tab;
+        document.querySelectorAll('.tab').forEach(function (t) {
+          t.classList.toggle('active', t.dataset.tab === tab);
+        });
+        document.getElementById('panel-daily').classList.toggle('hidden', tab !== 'daily');
+        document.getElementById('panel-weekly').classList.toggle('hidden', tab !== 'weekly');
+        updateHash();
+        if (tab === 'daily') {
+          loadDailyRecipe();
+        } else {
+          loadWeeklyRecipe();
+        }
+      }
+
+      document.getElementById('tab-daily').addEventListener('click', function () { switchTab('daily'); });
+      document.getElementById('tab-weekly').addEventListener('click', function () { switchTab('weekly'); });
+
+      function updateHash() {
+        var params = ['tab=' + state.tab];
+        if (state.tab === 'daily') {
+          params.push('date=' + state.dailyDate);
+        } else {
+          params.push('week=' + state.weeklyWeek);
+        }
+        window.location.hash = params.join('&');
+      }
+
+      function parseHash() {
+        var hash = window.location.hash.slice(1);
+        if (!hash) return;
+        var params = {};
+        hash.split('&').forEach(function (kv) {
+          var p = kv.split('=');
+          if (p.length === 2) params[p[0]] = decodeURIComponent(p[1]);
+        });
+        if (params.tab === 'weekly') {
+          state.tab = 'weekly';
+          if (params.week) state.weeklyWeek = params.week;
+        } else {
+          state.tab = 'daily';
+          if (params.date) state.dailyDate = params.date;
+        }
+      }
+
+      // 图片预览
+      var previewModal = document.getElementById('preview-modal');
+      var previewImg = document.getElementById('preview-img');
+      var previewTitle = document.getElementById('preview-title');
+
+      function showPreview(url, title) {
+        previewImg.src = url;
+        previewTitle.textContent = title || '预览';
+        previewModal.classList.remove('hidden');
+      }
+
+      document.getElementById('preview-close').addEventListener('click', function () {
+        previewModal.classList.add('hidden');
+        previewImg.src = '';
+      });
+      previewModal.addEventListener('click', function (e) {
+        if (e.target === previewModal) {
+          previewModal.classList.add('hidden');
+          previewImg.src = '';
+        }
+      });
+
+      // 日食谱
+      var dailyDatepicker = null;
+
+      function initDailyDatepicker() {
+        dailyDatepicker = flatpickr('#daily-datepicker', {
+          locale: 'zh',
+          dateFormat: 'Y-m-d',
+          defaultDate: state.dailyDate,
+          onChange: function (selectedDates, dateStr) {
+            if (dateStr && dateStr !== state.dailyDate) {
+              state.dailyDate = dateStr;
+              updateDailyDateDisplay();
+              loadDailyRecipe();
+            }
+          }
+        });
+
+        document.getElementById('daily-pick').addEventListener('click', function () {
+          dailyDatepicker.open();
+        });
+
+        document.getElementById('daily-prev').addEventListener('click', function () {
+          var d = new Date(state.dailyDate);
+          d.setDate(d.getDate() - 1);
+          state.dailyDate = formatDate(d);
+          dailyDatepicker.setDate(state.dailyDate);
+          updateDailyDateDisplay();
+          loadDailyRecipe();
+        });
+
+        document.getElementById('daily-next').addEventListener('click', function () {
+          var d = new Date(state.dailyDate);
+          d.setDate(d.getDate() + 1);
+          state.dailyDate = formatDate(d);
+          dailyDatepicker.setDate(state.dailyDate);
+          updateDailyDateDisplay();
+          loadDailyRecipe();
+        });
+      }
+
+      function updateDailyDateDisplay() {
+        document.getElementById('daily-date-text').textContent = formatDateDisplay(state.dailyDate);
+        var d = new Date(state.dailyDate);
+        var w = getISOWeek(d);
+        document.getElementById('daily-week-text').textContent = formatWeekKey(w.year, w.week);
+      }
+
+      function loadDailyRecipe() {
+        updateDailyDateDisplay();
+        var container = document.getElementById('daily-content');
+        container.innerHTML = '<div class="loading-page"><div class="loading"></div><span>正在加载食谱，请稍候...</span></div>';
+        updateHash();
+
+        api.get('/api/recipes/daily/' + state.dailyDate).then(function (res) {
+          var data = res.data;
+          if (!data || !data.id) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">🍽️</div>' +
+              '<div class="empty-state-text">今日食谱暂未上传，请稍后再来查看</div>' +
+              '</div>';
+            return;
+          }
+
+          var imagesHtml = '';
+          if (data.images && data.images.length) {
+            imagesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">菜品图片</span></div><div class="media-grid">';
+            data.images.forEach(function (img) {
+              var url = '/media/' + img.id;
+              imagesHtml +=
+                '<div class="media-item" data-url="' + url + '" data-title="' + escapeHtml(img.title + (img.dishName ? ' - ' + img.dishName : '')) + '">' +
+                '<img class="media-item-img" src="' + url + '" alt="' + escapeHtml(img.title || '') + '" loading="lazy">' +
+                '<div class="media-item-body">' +
+                '<div class="media-item-title">' + escapeHtml(img.title || '') + '</div>' +
+                (img.dishName ? '<div class="media-item-dish">' + escapeHtml(img.dishName) + '</div>' : '') +
+                '</div>' +
+                '</div>';
+            });
+            imagesHtml += '</div></div>';
+          }
+
+          var videosHtml = '';
+          if (data.videos && data.videos.length) {
+            videosHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">视频</span></div><div class="media-grid">';
+            data.videos.forEach(function (v) {
+              var url = '/media/' + v.id;
+              videosHtml +=
+                '<div class="media-item">' +
+                '<video class="media-item-img" src="' + url + '" controls preload="metadata"></video>' +
+                '<div class="media-item-body">' +
+                '<div class="media-item-title">' + escapeHtml(v.title || '') + '</div>' +
+                '</div>' +
+                '</div>';
+            });
+            videosHtml += '</div></div>';
+          }
+
+          var notesHtml = '';
+          if (data.notes) {
+            notesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">备注</span></div><div class="text-sm">' + escapeHtml(data.notes) + '</div></div>';
+          }
+
+          if (!imagesHtml && !videosHtml && !notesHtml) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">🍽️</div>' +
+              '<div class="empty-state-text">今日食谱暂未上传，请稍后再来查看</div>' +
+              '</div>';
+            return;
+          }
+
+          container.innerHTML = imagesHtml + videosHtml + notesHtml;
+
+          // 绑定图片预览
+          container.querySelectorAll('.media-item[data-url]').forEach(function (item) {
+            item.addEventListener('click', function () {
+              showPreview(item.dataset.url, item.dataset.title);
+            });
+          });
+        }).catch(function (err) {
+          if (err && err.code === 4001) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">🍽️</div>' +
+              '<div class="empty-state-text">今日食谱暂未上传，请稍后再来查看</div>' +
+              '</div>';
+          } else {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">⚠️</div>' +
+              '<div class="empty-state-text">加载失败，请稍后重试</div>' +
+              '</div>';
+          }
+        });
+      }
+
+      // 周食谱
+      var weeklyDatepicker = null;
+
+      function initWeeklyDatepicker() {
+        var weekInfo = parseWeekKey(state.weeklyWeek);
+        var range = getWeekRange(weekInfo.year, weekInfo.week);
+
+        weeklyDatepicker = flatpickr('#weekly-datepicker', {
+          locale: 'zh',
+          dateFormat: 'Y-m-d',
+          defaultDate: range.start,
+          onChange: function (selectedDates, dateStr) {
+            if (!dateStr) return;
+            var d = new Date(dateStr);
+            var w = getISOWeek(d);
+            var newWeek = formatWeekKey(w.year, w.week);
+            if (newWeek !== state.weeklyWeek) {
+              state.weeklyWeek = newWeek;
+              updateWeeklyWeekDisplay();
+              loadWeeklyRecipe();
+            }
+          }
+        });
+
+        document.getElementById('weekly-pick').addEventListener('click', function () {
+          weeklyDatepicker.open();
+        });
+
+        document.getElementById('weekly-prev').addEventListener('click', function () {
+          var info = parseWeekKey(state.weeklyWeek);
+          var newWeek = info.week - 1;
+          var newYear = info.year;
+          if (newWeek < 1) { newYear--; newWeek = 52; }
+          state.weeklyWeek = formatWeekKey(newYear, newWeek);
+          var range = getWeekRange(newYear, newWeek);
+          weeklyDatepicker.setDate(range.start);
+          updateWeeklyWeekDisplay();
+          loadWeeklyRecipe();
+        });
+
+        document.getElementById('weekly-next').addEventListener('click', function () {
+          var info = parseWeekKey(state.weeklyWeek);
+          var newWeek = info.week + 1;
+          var newYear = info.year;
+          if (newWeek > 52) { newYear++; newWeek = 1; }
+          state.weeklyWeek = formatWeekKey(newYear, newWeek);
+          var range = getWeekRange(newYear, newWeek);
+          weeklyDatepicker.setDate(range.start);
+          updateWeeklyWeekDisplay();
+          loadWeeklyRecipe();
+        });
+      }
+
+      function updateWeeklyWeekDisplay() {
+        var info = parseWeekKey(state.weeklyWeek);
+        var range = getWeekRange(info.year, info.week);
+        document.getElementById('weekly-week-text').textContent = info.year + '年 第' + info.week + '周';
+        document.getElementById('weekly-range-text').textContent =
+          formatDate(range.start) + ' ~ ' + formatDate(range.end);
+      }
+
+      function loadWeeklyRecipe() {
+        updateWeeklyWeekDisplay();
+        var container = document.getElementById('weekly-content');
+        container.innerHTML = '<div class="loading-page"><div class="loading"></div><span>正在加载周食谱，请稍候...</span></div>';
+        updateHash();
+
+        api.get('/api/recipes/weekly/' + state.weeklyWeek).then(function (res) {
+          var data = res.data;
+          if (!data || !data.id) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">📋</div>' +
+              '<div class="empty-state-text">本周食谱暂未上传，请稍后再来查看</div>' +
+              '</div>';
+            return;
+          }
+
+          var imagesHtml = '';
+          if (data.images && data.images.length) {
+            imagesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">周菜单图片</span></div><div class="media-grid">';
+            data.images.forEach(function (img) {
+              var url = '/media/' + img.id;
+              imagesHtml +=
+                '<div class="media-item" data-url="' + url + '" data-title="' + escapeHtml(img.title || '') + '">' +
+                '<img class="media-item-img" src="' + url + '" alt="' + escapeHtml(img.title || '') + '" loading="lazy">' +
+                '<div class="media-item-body">' +
+                '<div class="media-item-title">' + escapeHtml(img.title || '') + '</div>' +
+                '</div>' +
+                '</div>';
+            });
+            imagesHtml += '</div></div>';
+          }
+
+          var notesHtml = '';
+          if (data.notes) {
+            notesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">备注</span></div><div class="text-sm">' + escapeHtml(data.notes) + '</div></div>';
+          }
+
+          if (!imagesHtml && !notesHtml) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">📋</div>' +
+              '<div class="empty-state-text">本周食谱暂未上传，请稍后再来查看</div>' +
+              '</div>';
+            return;
+          }
+
+          container.innerHTML = imagesHtml + notesHtml;
+
+          container.querySelectorAll('.media-item[data-url]').forEach(function (item) {
+            item.addEventListener('click', function () {
+              showPreview(item.dataset.url, item.dataset.title);
+            });
+          });
+        }).catch(function (err) {
+          if (err && err.code === 4001) {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">📋</div>' +
+              '<div class="empty-state-text">本周食谱暂未上传，请稍再来查看</div>' +
+              '</div>';
+          } else {
+            container.innerHTML =
+              '<div class="empty-state">' +
+              '<div class="empty-state-icon">⚠️</div>' +
+              '<div class="empty-state-text">加载失败，请稍后重试</div>' +
+              '</div>';
+          }
+        });
+      }
+
+      // 初始化
+      parseHash();
+      initDailyDatepicker();
+      initWeeklyDatepicker();
+      updateDailyDateDisplay();
+      updateWeeklyWeekDisplay();
+
+      if (state.tab === 'weekly') {
+        switchTab('weekly');
+      } else {
+        switchTab('daily');
+      }
+
+      window.addEventListener('hashchange', function () {
+        parseHash();
+        if (state.tab === 'daily') {
+          switchTab('daily');
+        } else {
+          switchTab('weekly');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

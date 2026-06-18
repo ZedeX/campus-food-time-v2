@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>校园食光 - 食谱发布平台</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+  <div class="center-page">
+    <div style="width:100%; max-width:720px;">
+      <div class="text-center mb-lg">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); color:#fff; font-size:36px; margin-bottom:16px;">🍽️</div>
+        <h1 style="font-size:32px; margin-bottom:8px;">校园食光</h1>
+        <p class="text-muted">校园食堂食谱发布平台</p>
+      </div>
+
+      <div class="role-grid">
+        <div class="role-card" id="role-teacher">
+          <div class="role-card-icon">👨‍🏫</div>
+          <div class="role-card-title">我是老师</div>
+          <div class="role-card-desc">发布和管理每日/每周食谱</div>
+        </div>
+
+        <div class="role-card" id="role-parent">
+          <div class="role-card-icon">👨‍👩‍👧</div>
+          <div class="role-card-title">我是家长</div>
+          <div class="role-card-desc">查看孩子学校的每日餐食</div>
+        </div>
+      </div>
+
+      <div class="text-center mt-lg text-muted text-sm">
+        <p>上海星河湾双语学校</p>
+      </div>
+
+      <div id="loading-overlay" class="loading-page hidden">
+        <div class="loading"></div>
+        <span>正在检测登录状态...</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/utils/storage.js"></script>
+  <script src="/assets/js/components/notification.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    (function () {
+      var overlay = document.getElementById('loading-overlay');
+
+      // 角色选择
+      document.getElementById('role-teacher').addEventListener('click', function () {
+        window.location.href = '/teacher/login.html';
+      });
+
+      document.getElementById('role-parent').addEventListener('click', function () {
+        window.location.href = '/parent/login.html';
+      });
+
+      // 自动检测登录状态
+      function checkAuth() {
+        var token = Storage.getToken();
+        if (!token) {
+          overlay.classList.add('hidden');
+          return;
+        }
+
+        overlay.classList.remove('hidden');
+
+        api.get('/auth/check').then(function (res) {
+          var data = res.data || {};
+          var role = data.role || data.user && data.user.type || Storage.getRole();
+
+          var target = '';
+          if (role === 'teacher') {
+            target = '/teacher/dashboard.html';
+          } else if (role === 'parent') {
+            target = '/parent/dashboard.html';
+          } else if (role === 'admin') {
+            target = '/admin/dashboard.html';
+          }
+
+          if (target) {
+            // 直接跳转，不显示登录页，避免闪现
+            window.location.replace(target);
+          } else {
+            overlay.classList.add('hidden');
+          }
+        }).catch(function () {
+          // 检测失败（未登录或过期），显示角色选择
+          Storage.clearAuth();
+          overlay.classList.add('hidden');
+        });
+      }
+
+      checkAuth();
+    })();
+  </script>
+</body>
+</html>
