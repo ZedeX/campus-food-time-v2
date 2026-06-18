@@ -90,6 +90,7 @@ function matchRoute(method, path) {
     // Upload routes
     { method: 'POST', pattern: '/api/upload/presign', handler: uploadRoutes.presign },
     { method: 'POST', pattern: '/api/upload/direct', handler: uploadRoutes.direct },
+    { method: 'PUT', pattern: '/api/upload/direct', handler: uploadRoutes.direct },
 
     // Media routes
     { method: 'GET', pattern: '/media/:id', handler: mediaRoutes.getMedia },

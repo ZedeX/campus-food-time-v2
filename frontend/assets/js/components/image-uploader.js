@@ -387,11 +387,14 @@
       var fileKey = data.fileKey || data.fileUrl;
       var filename = data.filename;
 
-      if (!uploadUrl) {
+      if (!uploadUrl || !fileKey) {
         throw new Error('获取上传地址失败');
       }
 
-      return api.putToPresigned(uploadUrl, item.blob, fileType).then(function (uploadRes) {
+      // 添加 fileKey 作为 query 参数
+      var fullUploadUrl = uploadUrl + '?key=' + encodeURIComponent(fileKey);
+
+      return api.putToPresigned(fullUploadUrl, item.blob, fileType).then(function (uploadRes) {
         if (!uploadRes.ok && uploadRes.status !== 200) {
           throw new Error('上传到存储失败');
         }

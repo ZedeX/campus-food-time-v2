@@ -498,9 +498,12 @@
       var fileKey = data.fileKey || data.fileUrl;
       var filename = data.filename;
 
-      if (!uploadUrl) {
+      if (!uploadUrl || !fileKey) {
         throw new Error('获取上传地址失败');
       }
+
+      // 添加 fileKey 作为 query 参数
+      var fullUploadUrl = uploadUrl + '?key=' + encodeURIComponent(fileKey);
 
       // 检查文件大小，超过 99MB 截取
       var blobToUpload = item.blob;
@@ -511,7 +514,7 @@
         blobToUpload = blobToUpload.slice(0, 99 * 1024 * 1024, fileType);
       }
 
-      return api.putToPresigned(uploadUrl, blobToUpload, fileType).then(function (uploadRes) {
+      return api.putToPresigned(fullUploadUrl, blobToUpload, fileType).then(function (uploadRes) {
         if (!uploadRes.ok && uploadRes.status !== 200) {
           throw new Error('上传到存储失败');
         }
