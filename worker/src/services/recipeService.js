@@ -2,6 +2,7 @@
 import { generateToken } from '../utils/crypto.js';
 import { getISOWeek, getWeekDateRange, parseYearWeek, formatDate } from '../utils/dateUtils.js';
 import { RECIPE_TYPES, MEDIA_TYPES } from '../utils/constants.js';
+import { createShareToken } from '../routes/media.js';
 
 const CACHE_TTL = 3600; // 60 minutes
 
@@ -18,26 +19,28 @@ async function getMediaForRecipe(db, recipeId) {
 }
 
 // Map raw media rows into the API shape (split images / videos)
-function formatDailyRecipe(recipe, mediaList) {
-  const images = mediaList
-    .filter((m) => m.media_type === MEDIA_TYPES.IMAGE)
-    .map((m) => ({
+// Generates share tokens for each media so <img>/<video> tags can load without auth headers
+async function formatDailyRecipe(recipe, mediaList, env) {
+  const images = [];
+  const videos = [];
+  for (const m of mediaList) {
+    const shareToken = env ? await createShareToken(m.id, env) : null;
+    const entry = {
       id: m.id,
       title: m.title,
       dishName: m.dish_name,
       r2Key: m.r2_key,
       filename: m.filename,
       order: m.order_num,
-    }));
-  const videos = mediaList
-    .filter((m) => m.media_type === MEDIA_TYPES.VIDEO)
-    .map((m) => ({
-      id: m.id,
-      title: m.title,
-      r2Key: m.r2_key,
-      filename: m.filename,
-      order: m.order_num,
-    }));
+      shareToken,
+    };
+    if (m.media_type === MEDIA_TYPES.IMAGE) {
+      images.push(entry);
+    } else if (m.media_type === MEDIA_TYPES.VIDEO) {
+      delete entry.dishName;
+      videos.push(entry);
+    }
+  }
   return {
     id: recipe.id,
     date: recipe.date,
@@ -52,16 +55,20 @@ function formatDailyRecipe(recipe, mediaList) {
 }
 
 // Weekly recipes only have images (no videos, no dishName)
-function formatWeeklyRecipe(recipe, mediaList) {
-  const images = mediaList
-    .filter((m) => m.media_type === MEDIA_TYPES.IMAGE)
-    .map((m) => ({
+async function formatWeeklyRecipe(recipe, mediaList, env) {
+  const images = [];
+  for (const m of mediaList) {
+    if (m.media_type !== MEDIA_TYPES.IMAGE) continue;
+    const shareToken = env ? await createShareToken(m.id, env) : null;
+    images.push({
       id: m.id,
       title: m.title,
       r2Key: m.r2_key,
       filename: m.filename,
       order: m.order_num,
-    }));
+      shareToken,
+    });
+  }
   return {
     id: recipe.id,
     yearWeek: recipe.year_week,
@@ -164,7 +171,7 @@ export async function getDailyRecipe(date, schoolId, env) {
     ).bind(date, schoolId).first();
     if (!recipe) return null;
     const mediaList = await getMediaForRecipe(db, recipe.id);
-    return formatDailyRecipe(recipe, mediaList);
+    return formatDailyRecipe(recipe, mediaList, env);
   });
 }
 
@@ -227,7 +234,7 @@ export async function getDailyRecipeRange(startDate, endDate, schoolId, env) {
   const list = [];
   for (const recipe of recipes) {
     const mediaList = await getMediaForRecipe(db, recipe.id);
-    list.push(formatDailyRecipe(recipe, mediaList));
+    list.push(formatDailyRecipe(recipe, mediaList, env));
   }
   return list;
 }
@@ -245,7 +252,7 @@ export async function getWeeklyRecipe(yearWeek, schoolId, env) {
     ).bind(yearWeek, schoolId).first();
     if (!recipe) return null;
     const mediaList = await getMediaForRecipe(db, recipe.id);
-    return formatWeeklyRecipe(recipe, mediaList);
+    return formatWeeklyRecipe(recipe, mediaList, env);
   });
 }
 
@@ -306,7 +313,7 @@ export async function getWeeklyRecipeRange(startWeek, endWeek, schoolId, env) {
   const list = [];
   for (const recipe of recipes) {
     const mediaList = await getMediaForRecipe(db, recipe.id);
-    list.push(formatWeeklyRecipe(recipe, mediaList));
+    list.push(formatWeeklyRecipe(recipe, mediaList, env));
   }
   return list;
 }

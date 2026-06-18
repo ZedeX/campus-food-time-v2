@@ -1,6 +1,7 @@
 // Auth routes
 import { success, error, parseBody, unauthorized, ERROR_CODES } from '../utils/response.js';
 import { teacherLogin, parentLogin, parentRegister, adminLogin, verifySession, logout } from '../services/authService.js';
+import { encryptPassword, verifyPassword } from '../utils/crypto.js';
 import { isValidPhone } from '../utils/dateUtils.js';
 
 export const authRoutes = {
@@ -89,7 +90,15 @@ export const authRoutes = {
     if (!body || !body.oldPassword || !body.newPassword) {
       return error(ERROR_CODES.MISSING_PARAMS);
     }
-    // TODO: implement password change
+    const db = env.DB;
+    const secret = env.JWT_SECRET || 'default-secret';
+    const userRow = await db.prepare('SELECT password FROM users WHERE id = ?').bind(user.id).first();
+    if (!userRow) return error(ERROR_CODES.USER_NOT_FOUND);
+    if (!verifyPassword(body.oldPassword, userRow.password, secret)) {
+      return error(ERROR_CODES.PASSWORD_ERROR);
+    }
+    const newEncrypted = encryptPassword(body.newPassword, secret);
+    await db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newEncrypted, user.id).run();
     return success(null, '密码修改成功');
   },
 };

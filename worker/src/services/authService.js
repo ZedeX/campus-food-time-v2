@@ -103,13 +103,13 @@ export async function parentRegister({ phone, password, studentName, studentIdNu
 
   await db.prepare(
     'INSERT INTO users (id, type, phone, password, name, school_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(userId, USER_TYPES.PARENT, phone, encryptedPassword, phone, 1).run();
+  ).bind(userId, USER_TYPES.PARENT, phone, encryptedPassword, phone, student.school_id).run();
 
   // Create parent-student relation
   const relationId = generateToken();
   await db.prepare(
-    'INSERT INTO parent_student_relations (id, parent_user_id, student_id) VALUES (?, ?, ?)'
-  ).bind(relationId, userId, student.id).run();
+    'INSERT INTO parent_student_relations (id, parent_user_id, student_id, relation) VALUES (?, ?, ?, ?)'
+  ).bind(relationId, userId, student.id, body.relation || null).run();
 
   // Create session
   const sessionToken = generateToken();
@@ -129,7 +129,7 @@ export async function parentRegister({ phone, password, studentName, studentIdNu
       phone: maskPhone(phone),
       studentName: studentName,
       className: classInfo?.name || '',
-      schoolId: 1,
+      schoolId: student.school_id,
     },
     token: sessionToken,
   };
@@ -249,14 +249,40 @@ export async function verifySession(request, env) {
     if (blacklisted) return null;
   }
 
-  const session = await db.prepare(
-    `SELECT s.*, u.type, u.name, u.school_id, u.status, u.phone 
-     FROM sessions s 
-     JOIN users u ON s.user_id = u.id 
+  // Admin sessions don't have a users table row — check directly
+  let session;
+  if (token.startsWith('admin_')) {
+    // Fallback: this shouldn't happen, but handle gracefully
+    return null;
+  }
+
+  session = await db.prepare(
+    `SELECT s.*, u.type, u.name, u.school_id, u.status, u.phone
+     FROM sessions s
+     JOIN users u ON s.user_id = u.id
      WHERE s.session_token = ? AND s.expires_at > datetime("now")`
   ).bind(token).first();
 
+  // If not found in users JOIN, check if this is an admin session
   if (!session) {
+    const adminSession = await db.prepare(
+      `SELECT s.* FROM sessions s WHERE s.session_token = ? AND s.expires_at > datetime("now")`
+    ).bind(token).first();
+    if (adminSession && adminSession.user_id === 'admin_001') {
+      // Sliding expiry
+      const newExpiry = new Date(Date.now() + SESSION_EXPIRY_SECONDS * 1000).toISOString();
+      await db.prepare(
+        'UPDATE sessions SET expires_at = ?, last_accessed = datetime("now") WHERE session_token = ?'
+      ).bind(newExpiry, token).run();
+      return {
+        id: 'admin_001',
+        type: 'admin',
+        name: '管理员',
+        schoolId: 1,
+        phone: null,
+        token,
+      };
+    }
     return null;
   }
 

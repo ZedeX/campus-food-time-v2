@@ -176,6 +176,7 @@
           // 未授权相关错误，清除登录态
           if ([2001, 2002, 2003, 2005, 2006].indexOf(data.code) !== -1) {
             notify(data.message || ERROR_MESSAGES[data.code] || '请重新登录', 'warning');
+            data._notified = true;
             clearAuthAndRedirect();
             throw data;
           }

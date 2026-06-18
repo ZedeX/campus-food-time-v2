@@ -301,7 +301,7 @@
         updateHash();
 
         api.get('/api/recipes/daily/' + state.dailyDate).then(function (res) {
-          var data = res.data;
+          var data = res.data.recipe;
           if (!data || !data.id) {
             container.innerHTML =
               '<div class="empty-state">' +
@@ -315,7 +315,7 @@
           if (data.images && data.images.length) {
             imagesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">菜品图片</span></div><div class="media-grid">';
             data.images.forEach(function (img) {
-              var url = '/media/' + img.id;
+              var url = '/media/' + img.id + (img.shareToken ? '?token=' + img.shareToken : '');
               imagesHtml +=
                 '<div class="media-item" data-url="' + url + '" data-title="' + escapeHtml(img.title + (img.dishName ? ' - ' + img.dishName : '')) + '">' +
                 '<img class="media-item-img" src="' + url + '" alt="' + escapeHtml(img.title || '') + '" loading="lazy">' +
@@ -332,7 +332,7 @@
           if (data.videos && data.videos.length) {
             videosHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">视频</span></div><div class="media-grid">';
             data.videos.forEach(function (v) {
-              var url = '/media/' + v.id;
+              var url = '/media/' + v.id + (v.shareToken ? '?token=' + v.shareToken : '');
               videosHtml +=
                 '<div class="media-item">' +
                 '<video class="media-item-img" src="' + url + '" controls preload="metadata"></video>' +
@@ -451,7 +451,7 @@
         updateHash();
 
         api.get('/api/recipes/weekly/' + state.weeklyWeek).then(function (res) {
-          var data = res.data;
+          var data = res.data.recipe;
           if (!data || !data.id) {
             container.innerHTML =
               '<div class="empty-state">' +
@@ -465,7 +465,7 @@
           if (data.images && data.images.length) {
             imagesHtml = '<div class="card mb-lg"><div class="card-header"><span class="card-title">周菜单图片</span></div><div class="media-grid">';
             data.images.forEach(function (img) {
-              var url = '/media/' + img.id;
+              var url = '/media/' + img.id + (img.shareToken ? '?token=' + img.shareToken : '');
               imagesHtml +=
                 '<div class="media-item" data-url="' + url + '" data-title="' + escapeHtml(img.title || '') + '">' +
                 '<img class="media-item-img" src="' + url + '" alt="' + escapeHtml(img.title || '') + '" loading="lazy">' +

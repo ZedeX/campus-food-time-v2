@@ -354,7 +354,7 @@
         showNotification('正在加载食谱，请稍候...', 'info', 1500);
 
         api.get('/api/recipes/daily/' + state.dailyDate).then(function (res) {
-          var data = res.data;
+          var data = res.data.recipe;
           if (data && data.id) {
             state.dailyVersion = data.version;
             // 重建 uploader
@@ -369,7 +369,7 @@
                 id: img.id,
                 title: img.title || '',
                 dishName: img.dishName || '',
-                url: '/media/' + img.id,
+                url: '/media/' + img.id + (img.shareToken ? '?token=' + img.shareToken : ''),
                 filename: img.filename || ''
               };
             });
@@ -377,7 +377,7 @@
               return {
                 id: v.id,
                 title: v.title || '',
-                url: '/media/' + v.id,
+                url: '/media/' + v.id + (v.shareToken ? '?token=' + v.shareToken : ''),
                 filename: v.filename || ''
               };
             });
@@ -456,7 +456,7 @@
             return {
               title: img.title,
               dishName: img.dishName,
-              url: img.url,
+              r2Key: img.url,
               filename: img.filename,
               order: img.order
             };
@@ -464,7 +464,7 @@
           var videos = dailyVideoUploader.getData(true).map(function (v) {
             return {
               title: v.title,
-              url: v.url,
+              r2Key: v.url,
               filename: v.filename,
               order: v.order
             };
@@ -474,15 +474,11 @@
           var body = {
             images: images,
             videos: videos,
-            notes: notes
+            notes: notes,
+            version: state.dailyVersion
           };
 
-          var headers = {};
-          if (state.dailyVersion) {
-            headers['If-Match'] = state.dailyVersion;
-          }
-
-          return api.put('/api/recipes/daily/' + state.dailyDate, body, { headers: headers });
+          return api.put('/api/recipes/daily/' + state.dailyDate, body);
         }).then(function (res) {
           var data = res.data || {};
           state.dailyVersion = data.version;
@@ -490,7 +486,7 @@
           clearDraftChanged('daily');
           showNotification('食谱保存成功', 'success');
         }).catch(function (err) {
-          if (err && err.code === 409) {
+          if (err && err.code === 4005) {
             showNotification('食谱已被他人修改，请刷新后重试', 'warning');
           } else {
             showNotification('保存失败，请稍后重试', 'error');
@@ -601,7 +597,7 @@
         showNotification('正在加载周食谱，请稍候...', 'info', 1500);
 
         api.get('/api/recipes/weekly/' + state.weeklyWeek).then(function (res) {
-          var data = res.data;
+          var data = res.data.recipe;
           if (data && data.id) {
             state.weeklyVersion = data.version;
             weeklyImageUploader.destroy();
@@ -611,7 +607,7 @@
               return {
                 id: img.id,
                 title: img.title || '',
-                url: '/media/' + img.id,
+                url: '/media/' + img.id + (img.shareToken ? '?token=' + img.shareToken : ''),
                 filename: img.filename || ''
               };
             });
@@ -666,7 +662,7 @@
           var images = weeklyImageUploader.getData(true).map(function (img) {
             return {
               title: img.title,
-              url: img.url,
+              r2Key: img.url,
               filename: img.filename,
               order: img.order
             };
@@ -675,15 +671,11 @@
 
           var body = {
             images: images,
-            notes: notes
+            notes: notes,
+            version: state.weeklyVersion
           };
 
-          var headers = {};
-          if (state.weeklyVersion) {
-            headers['If-Match'] = state.weeklyVersion;
-          }
-
-          return api.put('/api/recipes/weekly/' + state.weeklyWeek, body, { headers: headers });
+          return api.put('/api/recipes/weekly/' + state.weeklyWeek, body);
         }).then(function (res) {
           var data = res.data || {};
           state.weeklyVersion = data.version;
@@ -691,7 +683,7 @@
           clearDraftChanged('weekly');
           showNotification('周食谱保存成功', 'success');
         }).catch(function (err) {
-          if (err && err.code === 409) {
+          if (err && err.code === 4005) {
             showNotification('食谱已被他人修改，请刷新后重试', 'warning');
           } else {
             showNotification('保存失败，请稍后重试', 'error');

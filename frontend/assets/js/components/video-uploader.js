@@ -485,14 +485,21 @@
 
     // 视频序号从10开始（按 PRD 规范）
     var order = this.items.indexOf(item) + 10;
-    var fileType = item.blob.type || 'video/mp4';
+    // Strip codecs suffix from MIME type (e.g. "video/webm;codecs=vp9" -> "video/webm")
+    var fileType = (item.blob.type || 'video/mp4').split(';')[0];
 
-    return api.post('/api/upload/presign', {
+    var presignBody = {
       fileType: fileType,
-      date: self.date,
       order: order,
       type: self.type
-    }).then(function (res) {
+    };
+    if (self.type === 'weekly') {
+      presignBody.yearWeek = self.date;
+    } else {
+      presignBody.date = self.date;
+    }
+
+    return api.post('/api/upload/presign', presignBody).then(function (res) {
       var data = res.data || {};
       var uploadUrl = data.uploadUrl;
       var fileKey = data.fileKey || data.fileUrl;
