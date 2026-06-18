@@ -11,3 +11,5 @@ Thumbs.db
 coverage/
 .history.md
 test_body.json
+playwright-report/
+test-results/
